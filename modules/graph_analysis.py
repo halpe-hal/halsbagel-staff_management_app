@@ -48,6 +48,7 @@ def show_graph_analysis():
     all_divisions = get_divisions()
     divisions = [d for d in all_divisions if TARGET_BRAND in d]
     store_divisions = [d for d in all_divisions if "[店舗]" in d]
+    brand_store_divs = [d for d in divisions if "[店舗]" in d]
 
     sales_data = get_sales_totals_all(list(range(start_date.year - 1, end_date.year + 1)))
     expense_data = get_expense_totals_all(list(range(start_date.year - 1, end_date.year + 1)))
@@ -63,8 +64,12 @@ def show_graph_analysis():
     df_sales["年月"] = df_sales["year"].astype(str) + " / " + df_sales["month"].astype(str).str.zfill(2)
     df_expense["年月"] = df_expense["year"].astype(str) + " / " + df_expense["month"].astype(str).str.zfill(2)
 
-    # 事業部ごとのタブ（先頭に店舗合計を追加）
-    tab_names = ["店舗合計"] + divisions
+    # タブ構成：店舗合計 → ブランド合計（2店舗以上の場合のみ）→ 個別事業部
+    brand_total_label = f"{TARGET_BRAND}合計"
+    tab_names = ["店舗合計"]
+    if len(brand_store_divs) >= 2:
+        tab_names.append(brand_total_label)
+    tab_names += divisions
     tabs = st.tabs(tab_names)
 
     for div_name, tab in zip(tab_names, tabs):
@@ -72,6 +77,8 @@ def show_graph_analysis():
             # --- 売上データ ---
             if div_name == "店舗合計":
                 df_sales_div = df_sales[df_sales["top_category"].isin(store_divisions)].copy()
+            elif div_name == brand_total_label:
+                df_sales_div = df_sales[df_sales["top_category"].isin(brand_store_divs)].copy()
             elif div_name == "事業本部":
                 df_sales_div = df_sales.copy()
             else:
@@ -94,6 +101,8 @@ def show_graph_analysis():
             # --- 支出データ（個別カテゴリ折れ線＋目標） ---
             if div_name == "店舗合計":
                 df_expense_div = df_expense[df_expense["top_category"].isin(store_divisions)].copy()
+            elif div_name == brand_total_label:
+                df_expense_div = df_expense[df_expense["top_category"].isin(brand_store_divs)].copy()
             elif div_name == "事業本部":
                 df_expense_div = df_expense.copy()
             else:

@@ -54,7 +54,8 @@ def show_dashboard():
 
     # --- 仮想集計エントリを動的生成 ---
     virtual_entries = ["店舗合計"]
-    if divisions:
+    brand_store_divs = [d for d in divisions if "[店舗]" in d]
+    if len(brand_store_divs) >= 2:
         virtual_entries.append(f"{TARGET_BRAND}合計")
 
     real_divisions = [d for d in divisions if d != "Lia全体合計"]
