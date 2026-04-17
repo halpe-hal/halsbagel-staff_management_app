@@ -45,7 +45,10 @@ def show_graph_analysis():
 
     # データ取得（HAL'S BAGEL. ブランドの事業部のみ表示）
     TARGET_BRAND = "HAL'S BAGEL."
-    divisions = [d for d in get_divisions() if TARGET_BRAND in d]
+    all_divisions = get_divisions()
+    divisions = [d for d in all_divisions if TARGET_BRAND in d]
+    store_divisions = [d for d in all_divisions if "[店舗]" in d]
+
     sales_data = get_sales_totals_all(list(range(start_date.year - 1, end_date.year + 1)))
     expense_data = get_expense_totals_all(list(range(start_date.year - 1, end_date.year + 1)))
 
@@ -60,13 +63,20 @@ def show_graph_analysis():
     df_sales["年月"] = df_sales["year"].astype(str) + " / " + df_sales["month"].astype(str).str.zfill(2)
     df_expense["年月"] = df_expense["year"].astype(str) + " / " + df_expense["month"].astype(str).str.zfill(2)
 
-    # 事業部ごとのタブ
-    tabs = st.tabs(divisions)
+    # 事業部ごとのタブ（先頭に店舗合計を追加）
+    tab_names = ["店舗合計"] + divisions
+    tabs = st.tabs(tab_names)
 
-    for div_name, tab in zip(divisions, tabs):
+    for div_name, tab in zip(tab_names, tabs):
         with tab:
-            # --- 売上データ（事業本部は全体集計） ---
-            df_sales_div = df_sales.copy() if div_name == "事業本部" else df_sales[df_sales["top_category"] == div_name].copy()
+            # --- 売上データ ---
+            if div_name == "店舗合計":
+                df_sales_div = df_sales[df_sales["top_category"].isin(store_divisions)].copy()
+            elif div_name == "事業本部":
+                df_sales_div = df_sales.copy()
+            else:
+                df_sales_div = df_sales[df_sales["top_category"] == div_name].copy()
+
             df_sales_div = ym_filter(df_sales_div, start_date, end_date)
             df_sales_grouped = df_sales_div.groupby("年月")["total_amount"].sum().reset_index()
 
@@ -82,7 +92,13 @@ def show_graph_analysis():
                 st.info("該当期間の売上データがありません。")
 
             # --- 支出データ（個別カテゴリ折れ線＋目標） ---
-            df_expense_div = df_expense.copy() if div_name == "事業本部" else df_expense[df_expense["top_category"] == div_name].copy()
+            if div_name == "店舗合計":
+                df_expense_div = df_expense[df_expense["top_category"].isin(store_divisions)].copy()
+            elif div_name == "事業本部":
+                df_expense_div = df_expense.copy()
+            else:
+                df_expense_div = df_expense[df_expense["top_category"] == div_name].copy()
+
             df_expense_div = ym_filter(df_expense_div, start_date, end_date)
             df_expense_grouped = df_expense_div.groupby(["年月", "second_category"])["total_cost"].sum().reset_index()
 
