@@ -8,7 +8,7 @@ from db.all_sales_total import get_sales_totals_all
 from db.all_expense_total import get_expense_totals_all
 from db.expense_targets import get_expense_target_by_top_category
 from db.expense_categories import get_expense_categories
-from db.divisions import get_divisions
+from db.divisions import get_division_records
 
 # --- 期間オプションから日付範囲を返す ---
 def get_filtered_period(option: str):
@@ -45,9 +45,14 @@ def show_graph_analysis():
 
     # データ取得（HAL'S BAGEL. ブランドの事業部のみ表示）
     TARGET_BRAND = "HAL'S BAGEL."
-    all_divisions = get_divisions()
-    divisions = [d for d in all_divisions if TARGET_BRAND in d]
-    brand_store_divs = [d for d in divisions if "[店舗]" in d]
+    all_records = get_division_records()
+    hal_records = [r for r in all_records if r.get("brand") == TARGET_BRAND]
+    divisions = [r["name"] for r in hal_records]
+
+    # 仮想合計エントリとマッピングを構築
+    virtual_div_map = {}
+    if len(divisions) >= 2:
+        virtual_div_map[f"{TARGET_BRAND}合計"] = divisions
 
     sales_data = get_sales_totals_all(list(range(start_date.year - 1, end_date.year + 1)))
     expense_data = get_expense_totals_all(list(range(start_date.year - 1, end_date.year + 1)))
@@ -63,23 +68,15 @@ def show_graph_analysis():
     df_sales["年月"] = df_sales["year"].astype(str) + " / " + df_sales["month"].astype(str).str.zfill(2)
     df_expense["年月"] = df_expense["year"].astype(str) + " / " + df_expense["month"].astype(str).str.zfill(2)
 
-    # タブ構成：ブランド合計（2店舗以上の場合のみ）→ 個別事業部
-    brand_total_label = f"{TARGET_BRAND}合計"
-    tab_names = []
-    if len(brand_store_divs) >= 2:
-        tab_names.append(brand_total_label)
-    tab_names += divisions
-    tabs = st.tabs(tab_names)
+    tab_labels = list(virtual_div_map.keys()) + divisions
+    tabs = st.tabs(tab_labels)
 
-    for div_name, tab in zip(tab_names, tabs):
+    for tab_name, tab in zip(tab_labels, tabs):
         with tab:
+            target_divs = virtual_div_map.get(tab_name, [tab_name])
+
             # --- 売上データ ---
-            if div_name == brand_total_label:
-                df_sales_div = df_sales[df_sales["top_category"].isin(brand_store_divs)].copy()
-            elif div_name == "事業本部":
-                df_sales_div = df_sales.copy()
-            else:
-                df_sales_div = df_sales[df_sales["top_category"] == div_name].copy()
+            df_sales_div = df_sales[df_sales["top_category"].isin(target_divs)].copy()
 
             df_sales_div = ym_filter(df_sales_div, start_date, end_date)
             df_sales_grouped = df_sales_div.groupby("年月")["total_amount"].sum().reset_index()
@@ -91,17 +88,12 @@ def show_graph_analysis():
                 fig1.update_layout(
                     yaxis=dict(tickformat=",", tickprefix="¥", separatethousands=True)
                 )
-                st.plotly_chart(fig1, use_container_width=True, key=f"{div_name}_sales")
+                st.plotly_chart(fig1, use_container_width=True, key=f"{tab_name}_sales")
             else:
                 st.info("該当期間の売上データがありません。")
 
             # --- 支出データ（個別カテゴリ折れ線＋目標） ---
-            if div_name == brand_total_label:
-                df_expense_div = df_expense[df_expense["top_category"].isin(brand_store_divs)].copy()
-            elif div_name == "事業本部":
-                df_expense_div = df_expense.copy()
-            else:
-                df_expense_div = df_expense[df_expense["top_category"] == div_name].copy()
+            df_expense_div = df_expense[df_expense["top_category"].isin(target_divs)].copy()
 
             df_expense_div = ym_filter(df_expense_div, start_date, end_date)
             df_expense_grouped = df_expense_div.groupby(["年月", "second_category"])["total_cost"].sum().reset_index()
@@ -113,7 +105,7 @@ def show_graph_analysis():
                 category_order = get_expense_categories()
 
                 # ✅ 目標率を取得
-                target_row = get_expense_target_by_top_category(div_name)
+                target_row = get_expense_target_by_top_category(tab_name)
                 if target_row:
                     target_map = {
                         "原価（仕入れ高）": target_row.get("cost_rate", 0),
@@ -158,6 +150,6 @@ def show_graph_analysis():
                         )
                     )
                     fig.update_yaxes(range=[0, max(df_cat["total_cost"].max(), df_cat["目標額"].max()) * 1.1])
-                    st.plotly_chart(fig, use_container_width=True, key=f"{div_name}_{category}_expense")
+                    st.plotly_chart(fig, use_container_width=True, key=f"{tab_name}_{category}_expense")
             else:
                 st.info("該当期間の支出データがありません。")
