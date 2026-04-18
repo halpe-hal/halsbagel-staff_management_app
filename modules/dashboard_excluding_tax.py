@@ -53,7 +53,7 @@ def show_dashboard_excluding_tax():
     divisions = [d for d in all_divisions if TARGET_BRAND in d]
 
     # --- 仮想集計エントリを動的生成 ---
-    virtual_entries = ["店舗合計"]
+    virtual_entries = []
     brand_store_divs = [d for d in divisions if "[店舗]" in d]
     if len(brand_store_divs) >= 2:
         virtual_entries.append(f"{TARGET_BRAND}合計")
@@ -92,10 +92,6 @@ def show_dashboard_excluding_tax():
 
         sales_dict = dict(sales_agg)
         expense_dict = dict(expense_agg)
-
-    elif selected_div == "店舗合計":
-        target_divs = [d for d in all_divisions if "[店舗]" in d]
-        sales_dict, expense_dict = aggregate_multi_divisions(target_divs)
 
     elif selected_div.endswith("合計"):
         # 〇〇合計 → ブランド名を含む全事業部を集計
