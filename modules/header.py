@@ -110,7 +110,7 @@ def show():
         }
         </style>
         <div class="custom-header">
-            HAL'S BAGEL. 損益計算
+            HAL'S BAGEL. 原価・人件費率
         </div>
         """,
         unsafe_allow_html=True
